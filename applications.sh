@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+#avoid interactive prompts from apt-get / dpkg-reconfigure
+export DEBIAN_FRONTEND=noninteractive
+
 apt-get update 
 
 #install vim --my favorite editor
@@ -16,14 +19,12 @@ locale-gen el_GR.UTF-8
 dpkg-reconfigure locales
 
 #install mysql apache php phpmyadmin with default passwd root. You can run dpkg-reconfigure to change  
-export DEBIAN_FRONTEND=noninteractive
 debconf-set-selections /vagrant/help_config/debconf.txt
 apt-get install -y mysql-server
 apt-get install -y phpmyadmin
 
-#copy profile
-cp /vagrant/help_config/profile /home/vagrant/.profile
-tr -d 'r' < /home/vagrant/.profile > /home/vagrant/.profile
+#copy profile, stripping Windows (CRLF) line endings
+tr -d '\r' < /vagrant/help_config/profile > /home/vagrant/.profile
 
 #set up diplomatiki
 #1. create appropriate .conf for apache2 HOST & VERSION SPECIFIC!!!! & then restart apache
