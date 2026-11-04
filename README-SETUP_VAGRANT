@@ -1,0 +1,12 @@
+Αυτοματοποιημένη δημιουργία περιβάλλοντος εργασίας:
+01.) Install vagrant 
+02.) Install virtualbox
+03.) επέλεξε ένα directory (λογω προβλήματος του vagrant όλο το path μόνο αγγλικοί χαρακτήρες)
+04.) εκτέλεσε:
+	vagrant box add hashicorp/precise32
+	vagrant plugin install vagrant-vbguest
+	vagrant up (υπομονή)
+	vagrant ssh (ανάλογα τον ssh client Θα επιτύχει. Στα windows με putty, χρησιμοποίησε το 
+		     puttygen για να δημιουργήσεις το κλειδί από αυτό που δίνει και ρύθμισε το putty,
+			 αλλιώς username: vagrant password: vagrant)
+05.) Δοκίμασε το site με http://127.0.0.1:8080/diplomatiki
