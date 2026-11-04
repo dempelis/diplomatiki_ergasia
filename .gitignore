@@ -37,3 +37,6 @@ Icon
 
 # ignore vagrant runtime specific files
 .vagrant/
+
+# local credentials (see .env.example)
+.env

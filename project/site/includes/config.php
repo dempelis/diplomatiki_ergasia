@@ -1,10 +1,16 @@
 <?php
 session_start();
 
-define('DBHOST','localhost');
-define('DBUSER','sentiment');
-define('DBPASS','JohnSnow');
-define('DBNAME','sentiment');
+/*
+ * Τα στοιχεία σύνδεσης στη βάση (DBHOST, DBUSER, DBPASS, DBNAME) δεν βρίσκονται στο repo.
+ * Τα γράφει το applications.sh από το .env στο /etc/diplomatiki/db.php.
+ * Μπορεί να οριστεί άλλη θέση με τη μεταβλητή περιβάλλοντος DIPLOMATIKI_DB_CONFIG.
+ */
+$dbConfigFile = getenv('DIPLOMATIKI_DB_CONFIG') ? getenv('DIPLOMATIKI_DB_CONFIG') : '/etc/diplomatiki/db.php';
+if (!is_readable($dbConfigFile)) {
+	die("Sorry! There seems to be a problem connecting to our database.");
+}
+require $dbConfigFile;
 
 $conn = @mysql_connect (DBHOST, DBUSER, DBPASS);
 $conn = @mysql_select_db (DBNAME);
