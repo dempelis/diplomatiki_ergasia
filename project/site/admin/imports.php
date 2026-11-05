@@ -45,9 +45,6 @@
 	login_required();
 	advanced_required();
 	
-	if(isset($_GET['logout'])){
-		logout();
-	}
 	include('header.php');
 ?>
 <script>

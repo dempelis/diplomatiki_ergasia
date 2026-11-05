@@ -10,7 +10,7 @@ if(logged_in()) {
 	exit();
 }
 /* πριν από οποιοδήποτε HTML: το login στέλνει headers (νέο session id, redirect) */
-if( isset($_POST['submit']) ) {
+if( isset($_POST['submit']) && is_valid_post() ) {
 	login(post_string('username'), post_string('password'));
 }
 ?>
@@ -30,6 +30,7 @@ if( isset($_POST['submit']) ) {
 		<div id="login">
 			<p><?php echo messages();?></p>        
 			<form method="post" action="">
+				<?php echo csrf_field(); ?>
 				<p><label><strong>Username</strong><input type="text" name="username" /></label></p>
 				<p><label><strong>Password</strong><input type="password" name="password" /></label></p>
 				<p><br /><input type="submit" name="submit" class="button" value="login" /></p>

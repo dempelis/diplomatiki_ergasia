@@ -4,10 +4,7 @@ require('../includes/config.php');
 login_required();
 advanced_required();
 
-if(isset($_GET['logout'])){
-	logout();
-}
-else  if(isset($_POST['delcomment']) && is_valid_post()){
+if(isset($_POST['delcomment']) && is_valid_post()){
 
 	deleteComment(post_string('delcomment'));
 	$_SESSION['success'] = "Το σχόλιο διαγράφηκε"; 

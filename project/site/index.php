@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require('./includes/config.php'); 
 
 $search = post_string("search");

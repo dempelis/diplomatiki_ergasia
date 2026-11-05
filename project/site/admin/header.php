@@ -1,9 +1,7 @@
-﻿<?php 
+<?php 
 login_required();
 
-if(isset($_GET['logout'])){
-	logout();
-}
+logout_if_requested();
 
 ?>
 <!DOCTYPE html>
@@ -22,17 +20,17 @@ if(isset($_GET['logout'])){
 <script language="JavaScript" type="text/javascript">
 	
 	/*
-	 * Διαγραφές: γίνονται με POST και CSRF token (όχι με GET link).
+	 * Διαγραφές και αποσύνδεση: γίνονται με POST και CSRF token (όχι με GET link).
 	 * Ένας σύνδεσμος <a class="js-post-delete" data-url=".." data-field=".." data-value=".." data-confirm="..">
 	 * ζητά επιβεβαίωση και στέλνει τη φόρμα.
 	 */
 	var CSRF_TOKEN = <?php echo json_encode(csrf_token()); ?>;
 
 	$(function() {
-		$(document).on('click', '.js-post-delete', function(e) {
+		$(document).on('click', '.js-post, .js-post-delete', function(e) {
 			e.preventDefault();
 			var link = $(this);
-			if (!confirm(link.attr('data-confirm'))) {
+			if (link.attr('data-confirm') && !confirm(link.attr('data-confirm'))) {
 				return;
 			}
 			var form = $('<form method="post"></form>').attr('action', link.attr('data-url'));
@@ -57,6 +55,6 @@ if(isset($_GET['logout'])){
 					echo "<li><a href='". DIRADMIN. "imports.php'>Εισαγωγή</a><li>";
 				}
 			?>	
-			<li><a href="<?php echo DIRADMIN;?>?logout">Αποσύνδεση</a></li>
+			<li><a href="#" class="js-post" data-url="<?php echo h(DIRADMIN);?>" data-field="logout" data-value="1">Αποσύνδεση</a></li>
 		</ul>
 	</div><!-- navigation div -->

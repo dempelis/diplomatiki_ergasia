@@ -7,10 +7,7 @@ advanced_required();
 
 
 
-if(isset($_GET['logout'])){
-	logout();
-}
-else  if(isset($_POST['deluser']) && is_valid_post()){
+if(isset($_POST['deluser']) && is_valid_post()){
 
 	$deluser = post_string('deluser');
 	if($deluser!="admin"){

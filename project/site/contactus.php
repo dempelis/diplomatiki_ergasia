@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 require('./includes/config.php'); 
 
 $from = post_string('from');

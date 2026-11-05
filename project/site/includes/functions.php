@@ -159,6 +159,8 @@ function login($user, $pass){
 		}
 		/* νέο session id μετά το login, ώστε να μη γίνεται session fixation */
 		session_regenerate_id(true);
+		/* νέο CSRF token για τη συνδεδεμένη συνεδρία */
+		unset($_SESSION['csrf_token']);
 		$_SESSION['authorized'] = true;
 		$_SESSION['username'] = $row['username'];
 		$_SESSION['userType'] = $row['userType'];
@@ -206,9 +208,17 @@ function advanced_required() {
 }
 
 function logout(){
+	$_SESSION = array();
 	session_destroy();
 	header('Location:login.php');
 	exit();
+}
+
+/* Αποσύνδεση μόνο με POST και έγκυρο CSRF token (ο σύνδεσμος στο header.php στέλνει φόρμα) */
+function logout_if_requested() {
+	if (isset($_POST['logout']) && is_valid_post()) {
+		logout();
+	}
 }
 
 function messages() {
@@ -457,11 +467,11 @@ function getAdjectivesForVoting($username){
 	return $adjective_list;
 }
 
+/* πρώτα τα επίθετα με τις λιγότερες ψήφους (ακέραιος αντί για bool, όπως απαιτεί το usort) */
 function cmp($a, $b){
-	if($a->votes < $b->votes)
-		return false;
-	else
-		return true;
+	if ($a->votes == $b->votes)
+		return 0;
+	return ($a->votes < $b->votes) ? -1 : 1;
 }
 
 /* Καταχωρεί ψήφο (-2 .. 2). Επιστρέφει false αν η ψήφος δεν είναι έγκυρη ή έχει ήδη δοθεί. */

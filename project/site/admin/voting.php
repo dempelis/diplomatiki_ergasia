@@ -4,10 +4,6 @@ require('../includes/config.php');
 
 login_required();
 
-if(isset($_GET['logout'])){
-	logout();
-}
-
 $search = "";
 $username = $_SESSION['username'];
 
