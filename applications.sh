@@ -56,6 +56,8 @@ phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2
 EOF
 apt-get install -y mysql-server
 apt-get install -y phpmyadmin
+#PDO MySQL driver used by the site (normally pulled in by phpmyadmin, installed explicitly to be sure)
+apt-get install -y php5-mysql
 
 #copy profile, stripping Windows (CRLF) line endings
 tr -d '\r' < /vagrant/help_config/profile > /home/vagrant/.profile

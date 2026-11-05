@@ -1,5 +1,22 @@
 <?php
+/* το cookie της συνεδρίας δεν είναι προσβάσιμο από JavaScript και δεν δεχόμαστε session id από το URL */
+ini_set('session.cookie_httponly', 1);
+ini_set('session.use_only_cookies', 1);
 session_start();
+
+/*
+ * Μη αναμενόμενα σφάλματα (π.χ. της βάσης) καταγράφονται στο error log του server
+ * και ο χρήστης βλέπει μόνο ένα γενικό μήνυμα, χωρίς λεπτομέρειες για τα queries.
+ */
+function diplomatiki_exception_handler($e) {
+	error_log('diplomatiki: ' . $e);
+	if (!headers_sent()) {
+		header('HTTP/1.1 500 Internal Server Error');
+	}
+	echo 'Sorry! Something went wrong. Please try again later.';
+	exit(1);
+}
+set_exception_handler('diplomatiki_exception_handler');
 
 /*
  * Τα στοιχεία σύνδεσης στη βάση (DBHOST, DBUSER, DBPASS, DBNAME) δεν βρίσκονται στο repo.
@@ -12,12 +29,26 @@ if (!is_readable($dbConfigFile)) {
 }
 require $dbConfigFile;
 
-$conn = @mysql_connect (DBHOST, DBUSER, DBPASS);
-$conn = @mysql_select_db (DBNAME);
-if(!$conn){
-	die( "Sorry! There seems to be a problem connecting to our database.");
+/*
+ * Σύνδεση με PDO. Όλα τα queries γίνονται με prepared statements (βλ. db_query στο functions.php).
+ * ATTR_EMULATE_PREPARES=false: οι παράμετροι στέλνονται χωριστά από το SQL στον MySQL server.
+ */
+try {
+	$db = new PDO(
+		'mysql:host=' . DBHOST . ';dbname=' . DBNAME . ';charset=utf8',
+		DBUSER,
+		DBPASS,
+		array(
+			PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+			PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+			PDO::ATTR_EMULATE_PREPARES   => false,
+			PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8',
+		)
+	);
+} catch (PDOException $e) {
+	error_log('diplomatiki: database connection failed: ' . $e->getMessage());
+	die("Sorry! There seems to be a problem connecting to our database.");
 }
-mysql_query("SET NAMES UTF8");
 
 
 /*

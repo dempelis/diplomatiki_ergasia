@@ -1,14 +1,18 @@
 <?php 
 
-require('../includes/config.php'); 
+require('../includes/config.php');
 
-if(isset($_POST['submit'])){
+/* ο έλεγχος πρέπει να γίνεται ΠΡΙΝ από την επεξεργασία της φόρμας (παλιά γινόταν μόνο στο header.php) */
+login_required();
+advanced_required();
+
+if(isset($_POST['submit']) && is_valid_post()){
 
 
-	$name = $_POST['name'];
-	$username = $_POST['username'];
-	$type = $_POST['type'];
-	$password = $_POST['password'];
+	$name = post_string('name');
+	$username = post_string('username');
+	$type = post_string('type');
+	$password = post_string('password');
 		
 	
 	if(addUser($username ,$name,$password,$type)   ){
@@ -39,7 +43,7 @@ include("header.php");
 
 
 <form action="" method="post">
-
+<?php echo csrf_field(); ?>
 
 <p>Όνομα:<br /> <input name="name" type="text" value="" size="103" /></p>
 <p>username:<br /> <input name="username" type="text" value="" size="103" /></p>

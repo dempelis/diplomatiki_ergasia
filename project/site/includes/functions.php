@@ -3,24 +3,170 @@ if (!defined('included')){
 die('You cannot access this file directly!');
 }
 
+/*
+ * ------------------------------------------------------------------
+ *  Βοηθητικές συναρτήσεις ασφάλειας
+ *  (γραμμένες ώστε να τρέχουν και σε PHP 5.3)
+ * ------------------------------------------------------------------
+ */
+
+/*
+ * Εκτελεί ένα prepared statement και επιστρέφει το PDOStatement.
+ * Οι τιμές περνούν ΜΟΝΟ ως παράμετροι (?) και ποτέ μέσα στο SQL string,
+ * οπότε δεν είναι δυνατό SQL injection, ακόμα κι αν προέρχονται από τη βάση.
+ */
+function db_query($sql, $params = array()) {
+	global $db;
+	$stmt = $db->prepare($sql);
+	$i = 1;
+	foreach ($params as $value) {
+		if (is_array($value) || is_object($value)) {
+			throw new InvalidArgumentException('db_query: parameter ' . $i . ' must be a scalar');
+		}
+		$stmt->bindValue($i, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+		$i++;
+	}
+	$stmt->execute();
+	return $stmt;
+}
+
+/* true αν η εξαίρεση είναι παραβίαση περιορισμού (διπλό κλειδί, foreign key) */
+function is_constraint_violation($e) {
+	return ($e instanceof PDOException) && $e->getCode() == '23000';
+}
+
+/* Escape για εμφάνιση σε HTML, τόσο σε κείμενο όσο και σε τιμές attributes */
+function h($str) {
+	return htmlspecialchars((string)$str, ENT_QUOTES, 'UTF-8');
+}
+
+/* Κρυπτογραφικά ασφαλή τυχαία bytes */
+function random_token_bytes($length) {
+	if (function_exists('openssl_random_pseudo_bytes')) {
+		$strong = false;
+		$bytes = openssl_random_pseudo_bytes($length, $strong);
+		if ($bytes !== false && $strong && strlen($bytes) == $length) {
+			return $bytes;
+		}
+	}
+	$fh = @fopen('/dev/urandom', 'rb');
+	if ($fh) {
+		$bytes = fread($fh, $length);
+		fclose($fh);
+		if (strlen($bytes) == $length) {
+			return $bytes;
+		}
+	}
+	throw new Exception('No secure source of random bytes available');
+}
+
+/* Σύγκριση strings σε σταθερό χρόνο (δεν υπάρχει hash_equals πριν την PHP 5.6) */
+function equals_constant_time($a, $b) {
+	if (!is_string($a) || !is_string($b) || strlen($a) != strlen($b)) {
+		return false;
+	}
+	$diff = 0;
+	$len = strlen($a);
+	for ($i = 0; $i < $len; $i++) {
+		$diff |= ord($a[$i]) ^ ord($b[$i]);
+	}
+	return $diff === 0;
+}
+
+/*
+ * CSRF: κάθε φόρμα που αλλάζει δεδομένα στέλνει ένα token της συνεδρίας,
+ * ώστε μια ξένη σελίδα να μη μπορεί να κάνει ενέργειες στο όνομα του χρήστη.
+ */
+function csrf_token() {
+	if (empty($_SESSION['csrf_token'])) {
+		$_SESSION['csrf_token'] = bin2hex(random_token_bytes(32));
+	}
+	return $_SESSION['csrf_token'];
+}
+
+function csrf_field() {
+	return '<input type="hidden" name="csrf_token" value="' . h(csrf_token()) . '" />';
+}
+
+function csrf_check() {
+	$sent = (isset($_POST['csrf_token']) && is_string($_POST['csrf_token'])) ? $_POST['csrf_token'] : '';
+	if (!isset($_SESSION['csrf_token']) || !equals_constant_time($_SESSION['csrf_token'], $sent)) {
+		header('HTTP/1.1 403 Forbidden');
+		die('Η φόρμα έληξε ή δεν είναι έγκυρη. Επιστρέψτε, ανανεώστε τη σελίδα και δοκιμάστε ξανά.');
+	}
+}
+
+/* true μόνο για αίτημα POST με έγκυρο CSRF token (αλλιώς σταματά με 403) */
+function is_valid_post() {
+	if ($_SERVER['REQUEST_METHOD'] != 'POST') {
+		return false;
+	}
+	csrf_check();
+	return true;
+}
+
+/* Τιμή από $_POST ως string ('' αν λείπει ή δεν είναι string) */
+function post_string($name) {
+	return (isset($_POST[$name]) && is_string($_POST[$name])) ? $_POST[$name] : '';
+}
+
+/*
+ * Κωδικοί: bcrypt μέσω crypt() ($2y$ υπάρχει από PHP 5.3.7).
+ * Οι παλιοί κωδικοί MD5 γίνονται δεκτοί και αναβαθμίζονται σε bcrypt στο επόμενο login.
+ */
+function hash_password($password) {
+	$salt = substr(strtr(base64_encode(random_token_bytes(16)), '+', '.'), 0, 22);
+	$hash = crypt($password, '$2y$10$' . $salt);
+	if (!is_string($hash) || strlen($hash) != 60) {
+		throw new Exception('bcrypt is not available');
+	}
+	return $hash;
+}
+
+function is_legacy_md5_hash($stored) {
+	return strlen($stored) == 32 && ctype_xdigit($stored);
+}
+
+function verify_password($password, $stored) {
+	if (!is_string($stored) || $stored === '') {
+		return false;
+	}
+	if (is_legacy_md5_hash($stored)) {
+		return equals_constant_time(strtolower($stored), md5($password));
+	}
+	return equals_constant_time(crypt($password, $stored), $stored);
+}
+
+function valid_user_type($type) {
+	return in_array($type, array('advanced', 'registered'), true);
+}
+
+/*
+ * ------------------------------------------------------------------
+ *  Συνεδρία / δικαιώματα
+ * ------------------------------------------------------------------
+ */
+
 function login($user, $pass){
-   $user = strip_tags(mysql_escape_string($user));
-   $pass = strip_tags(mysql_escape_string($pass));
-   $pass = md5($pass);
- 
-   $sql = "SELECT * FROM users WHERE username = '$user' AND password = '$pass'";
-   $result = mysql_query($sql) or die('Query failed. ' . mysql_error());
-      
-   if (mysql_num_rows($result) == 1) {
-	  $_SESSION['authorized'] = true;
-	  $_SESSION['username'] = $user;
-	  $row = mysql_fetch_array($result);
-	  $_SESSION['userType'] = $row['userType'];
-      header('Location: '.DIRADMIN);
-	  exit();
-   } else {
-	  $_SESSION['error'] = 'Sorry, wrong username or password';
-   }
+	$user = is_string($user) ? $user : '';
+	$pass = is_string($pass) ? $pass : '';
+
+	$row = db_query("SELECT username, password, userType FROM users WHERE username = ?", array($user))->fetch();
+
+	if ($row && verify_password($pass, $row['password'])) {
+		if (is_legacy_md5_hash($row['password'])) {
+			db_query("UPDATE users SET password = ? WHERE username = ?", array(hash_password($pass), $row['username']));
+		}
+		/* νέο session id μετά το login, ώστε να μη γίνεται session fixation */
+		session_regenerate_id(true);
+		$_SESSION['authorized'] = true;
+		$_SESSION['username'] = $row['username'];
+		$_SESSION['userType'] = $row['userType'];
+		header('Location: '.DIRADMIN);
+		exit();
+	} else {
+		$_SESSION['error'] = 'Sorry, wrong username or password';
+	}
 }
 
 
@@ -29,34 +175,34 @@ function logged_in() {
 		return true;
 	} else {
 		return false;
-	}	
+	}
 }
 
 function isAdvanced() {
-	if( isset( $_SESSION['userType'])  &&  $_SESSION['userType'] == 'advanced') {
+	if( logged_in() && isset( $_SESSION['userType'])  &&  $_SESSION['userType'] == 'advanced') {
 		return true;
 	} else {
 		return false;
-	}	
+	}
 }
 
 function login_required() {
-	if(logged_in()) {	
+	if(logged_in()) {
 		return true;
 	} else {
 		header('Location: login.php');
 		exit();
-	}	
+	}
 }
 
 function advanced_required() {
-	if(isAdvanced()) {	
+	if(isAdvanced()) {
 		return true;
 	} else {
-		$_SESSION['error'] = "Δεν έχετε πρόσβαση στη συγκεκριμένη σελίδα"; 
+		$_SESSION['error'] = "Δεν έχετε πρόσβαση στη συγκεκριμένη σελίδα";
 		header('Location: index.php');
 		exit();
-	}	
+	}
 }
 
 function logout(){
@@ -80,294 +226,262 @@ function messages() {
 
 function errors($error){
 	if (!empty($error)) {
+			$showError = '';
 			$i = 0;
 			while ($i < count($error)){
-			$showError.= "<div class=msg-error>".$error[$i]."</div>";
+			$showError.= "<div class=msg-error>".h($error[$i])."</div>";
 			$i ++;}
 			echo $showError;
 	}
-} 
+}
+
+/*
+ * ------------------------------------------------------------------
+ *  Σχόλια
+ * ------------------------------------------------------------------
+ */
 
 function addComment($from, $subject, $comment){
-	$from = mysql_escape_string($from);
-	$subject = mysql_escape_string($subject);
-	$comment = mysql_escape_string($comment);
-	
-	$sql = "INSERT INTO `contactus`( `from`, `subject`, `comment`) VALUES ('" . $from ."', '". $subject . "', '". $comment ."')";
-	$result  = mysql_query($sql)  or die(mysql_error());
-	
-	if(!$result)
-		return false;
-	else 
-		return true;
+	db_query("INSERT INTO `contactus` (`from`, `subject`, `comment`) VALUES (?, ?, ?)",
+		array((string)$from, (string)$subject, (string)$comment));
+	return true;
 }
+
 function getComments()
 {
 	$comment_list = array();
-	$sql = "SELECT * FROM`contactus`";
-	$result = mysql_query($sql);
-	$i=0;
-	while ($row = mysql_fetch_array($result)) {
+	$result = db_query("SELECT * FROM `contactus`");
+	while ($row = $result->fetch()) {
 		$comment = new Comment();
 		$comment->id = $row['id'];
 		$comment->from = $row['from'];
 		$comment->subject = $row['subject'];
 		$comment->comment = $row['comment'];
-		
-		$comment_list[$i] = $comment;
-		$i++;
+
+		$comment_list[] = $comment;
 	}
 	return $comment_list;
 }
+
+function deleteComment($id) {
+	db_query("DELETE FROM contactus WHERE id = ?", array((int)$id));
+}
+
+/*
+ * ------------------------------------------------------------------
+ *  Χρήστες
+ * ------------------------------------------------------------------
+ */
+
+function rowToUser($row) {
+	$user = new User();
+	$user->username = $row['username'];
+	$user->password = $row['password'];
+	$user->name = $row['name'];
+	$user->type = $row['userType'];
+	return $user;
+}
+
 function getUsers()
 {
-	$user_list=array();
-	$sql="SELECT * FROM users ORDER BY username ";
-	
-	$result = mysql_query($sql);
-	$i=0;
-	while($row = mysql_fetch_array($result)) {
-		$user=new User();
-		$user->username=$row['username'];
-		$user->password=$row['password'];
-		$user->name=$row['name'];
-		$user->type=$row['userType'];
-		
-		$user_list[$i]=$user;
-		$i++;
+	$user_list = array();
+	$result = db_query("SELECT * FROM users ORDER BY username");
+	while ($row = $result->fetch()) {
+		$user_list[] = rowToUser($row);
 	}
-	
 	return $user_list;
 }
 
 
 function getUser($username)
 {
-	$username = mysql_escape_string($username);
-	
-	$user=new User();
-	$sql="SELECT * FROM users WHERE username='$username'" ;
-	
-	$result = mysql_query($sql);
-	
-	while( $row = mysql_fetch_array($result)) {
-		$user->username=$row['username'];
-		$user->password=$row['password'];
-		$user->name=$row['name'];
-		$user->type=$row['userType'];
-	}
-	
-	return $user;
+	$row = db_query("SELECT * FROM users WHERE username = ?", array((string)$username))->fetch();
+	return $row ? rowToUser($row) : new User();
 }
 
 function updateUser($username,$password ,$name,$type){
-	
-	$name = mysql_escape_string($name);
-	$username = mysql_escape_string($username);
-	$password = mysql_escape_string($password);
-	$type = mysql_escape_string($type);
-	
-	if($password=='')
-		$sql="UPDATE users SET name='$name', userType='$type' WHERE username='$username'";
-	else
-		$sql="UPDATE users SET name='$name',userType='$type', password=MD5('$password') WHERE username='$username'";
-	
-	$result = mysql_query($sql);
-	if(!$result)
+	if (!valid_user_type($type)) {
 		return false;
-	else 
-		return true;
-
+	}
+	if ($password == '') {
+		db_query("UPDATE users SET name = ?, userType = ? WHERE username = ?",
+			array((string)$name, $type, (string)$username));
+	} else {
+		db_query("UPDATE users SET name = ?, userType = ?, password = ? WHERE username = ?",
+			array((string)$name, $type, hash_password((string)$password), (string)$username));
+	}
+	return true;
 }
 
 
 function addUser($username,$name,$password,$type ){
-	
-	$name = mysql_escape_string($name);
-	$username = mysql_escape_string($username);
-	$password = mysql_escape_string($password);
-	$type = mysql_escape_string($type);
-	
-	
-	$result  = mysql_query("INSERT INTO users (username,password,name,userType) VALUES ('$username',MD5('$password'),'$name','$type')")  or die(mysql_error());
-	
-	if(!$result)
+	if (!valid_user_type($type) || $username == '' || $password == '') {
 		return false;
-	else 
-		return true;
-}
-
-function countAdjectives() {
-	$sql = "SELECT COUNT(*) FROM adjectives";
-	$result = mysql_query($sql) or die (mysql_error());
-	$total = mysql_fetch_row($result);
-
-	return $total[0];
-}
-function showAdjectives($page, $show=NUM_OF_ADJ_TO_SHOW) {
-	$adjective_list = array();
-	$start = ($page - 1) * NUM_OF_ADJ_TO_SHOW;
-	$sql = "SELECT * FROM adjectives LIMIT " . $start .", " . $show;
-	// var_dump($sql); exit;
-	$result = mysql_query($sql) or die(mysql_error());
-	
-	while($row = mysql_fetch_array($result))
-	{
-		$adjective=new Adjective();
-		$adjective->code=$row['code'];
-		$adjective->adjective=$row['adjective'];
-		$adjective->definition=$row['definition'];
-		
-		$sql="SELECT example FROM examples where code='$adjective->code' ";
-		$res = mysql_query($sql);
-		$i=0;
-		while($myrow = mysql_fetch_array($res))
-		{
-			$adjective->examples[$i] = $myrow['example'];
-			$i++;
-		}
-		$adjective_list[]=$adjective;		
 	}
-	return $adjective_list;
-}
-function getAdjectives($search){
-	$search = mysql_escape_string(trim($search));
-
-	$adjective_list=array();
-	$sql="SELECT * FROM adjectives where adjective LIKE '$search' ";
-	
-	$result = mysql_query($sql);
-	
-	while($row = mysql_fetch_array($result))
-	{
-		$adjective=new Adjective();
-		$adjective->code=$row['code'];
-		$adjective->adjective=$row['adjective'];
-		$adjective->definition=$row['definition'];
-		
-		$sql="SELECT example FROM examples where code='$adjective->code' ";
-		$res = mysql_query($sql);
-		$i=0;
-		while($myrow = mysql_fetch_array($res))
-		{
-			$adjective->examples[$i] = $myrow['example'];
-			$i++;
+	try {
+		db_query("INSERT INTO users (username, password, name, userType) VALUES (?, ?, ?, ?)",
+			array((string)$username, hash_password((string)$password), (string)$name, $type));
+	} catch (PDOException $e) {
+		if (is_constraint_violation($e)) {
+			return false; // το username υπάρχει ήδη
 		}
-		$adjective_list[]=$adjective;		
+		throw $e;
 	}
-	
-	return $adjective_list;
-
+	return true;
 }
 
-function getAdjective($code){
-	$code = mysql_escape_string($code);
+function deleteUser($username) {
+	db_query("DELETE FROM users WHERE username = ?", array((string)$username));
+}
 
-	$adjective=new Adjective();
-	$sql="SELECT * FROM adjectives where code='$code' ";
-	
-	$result = mysql_query($sql);
-	
-	while($row = mysql_fetch_array($result)) {
-		$adjective->code=$row['code'];
-		$adjective->adjective=$row['adjective'];
-		$adjective->definition=$row['definition'];
-		
-		$sql="SELECT example FROM examples where code='$adjective->code' ";
-		$res = mysql_query($sql);
-		$i=0;
-		while($myrow = mysql_fetch_array($res))
-		{
-			$adjective->examples[$i] = $myrow['example'];
-			$i++;
-		}
+/*
+ * ------------------------------------------------------------------
+ *  Επίθετα
+ * ------------------------------------------------------------------
+ */
+
+function getExamples($code) {
+	$examples = array();
+	$result = db_query("SELECT example FROM examples WHERE code = ?", array((string)$code));
+	while ($row = $result->fetch()) {
+		$examples[] = $row['example'];
 	}
-	
+	return $examples;
+}
+
+function rowToAdjective($row) {
+	$adjective = new Adjective();
+	$adjective->code = $row['code'];
+	$adjective->adjective = $row['adjective'];
+	$adjective->definition = $row['definition'];
+	$adjective->examples = getExamples($row['code']);
 	return $adjective;
 }
 
-function getRanking($code){
-
-	$rankings = array(0,0,0,0,0);
-	$code = mysql_escape_string($code);
-	$sql="SELECT count( * ) as count , rank FROM `rankings`  WHERE code ='$code' GROUP BY rank ";
-	$result = mysql_query($sql);
-	$i=2;
-	$votes=0;
-	while($row = mysql_fetch_array($result)) {
-		$rankings[$row['rank']+2] = $row['count'];
-		$votes= $votes +  $row['count'];
-	}
-	if($votes==0)
-		return 0;
-	else	
-	return $rankings;
-
+function countAdjectives() {
+	$total = db_query("SELECT COUNT(*) FROM adjectives")->fetchColumn();
+	return (int)$total;
 }
 
-function addAdjective($code,$adjective,$definition ,$examples){
-	$code = mysql_escape_string($code);
-	$adjective = mysql_escape_string($adjective);
-	$definition = mysql_escape_string($definition);
-	$examples = explode(',', mysql_escape_string($examples));
-	
-	$sql = "replace INTO adjectives (code,adjective,definition) VALUES ('$code','$adjective','$definition')";
-	$res  = mysql_query($sql )  or die(mysql_error());
-	
-	foreach ($examples as $example){
-		$sql = "insert INTO examples (code,example) VALUES ('$code','$example')";
-		$result  = mysql_query($sql )  or die(mysql_error());
-	}
-	
-	if($res)
-		return true;
-	else 
-		return false;
-}
+function showAdjectives($page, $show=NUM_OF_ADJ_TO_SHOW) {
+	$page = max(1, (int)$page);
+	$show = max(1, (int)$show);
+	$start = ($page - 1) * $show;
 
-function getAdjectivesForVoting($username){
-	$username = mysql_escape_string($username);
-
-	$adjective_list=array();
-	$sql="SELECT * FROM `adjectives` WHERE code not in ( select code from rankings where username='$username') LIMIT 1000 " ;
-	
-	$result = mysql_query($sql) or die(mysql_error());
-	
-	while($row = mysql_fetch_array($result)) {
-		$adjective=new Adjective();
-		$adjective->code=$row['code'];
-		$adjective->adjective=$row['adjective'];
-		$adjective->definition=$row['definition'];
-		
-		$sql="SELECT example FROM examples where code='$adjective->code' ";
-		$res = mysql_query($sql);
-		$i=0;
-		while($myrow = mysql_fetch_array($res))	{
-			$adjective->examples[$i] = $myrow['example'];
-			$i++;
-		}
-		
-		$sql="SELECT count(*) as count FROM rankings where code='$adjective->code' ";
-		$res = mysql_query($sql);
-		$myrow = mysql_fetch_array($res);
-		$adjective->votes = $myrow['count'];
-		
-		$adjective_list[]=$adjective;		
+	$adjective_list = array();
+	$result = db_query("SELECT * FROM adjectives LIMIT ?, ?", array($start, $show));
+	while ($row = $result->fetch()) {
+		$adjective_list[] = rowToAdjective($row);
 	}
-	
-    usort($adjective_list, "cmp");
-	
 	return $adjective_list;
 }
 
- function cmp($a, $b){
-        if($a->votes < $b->votes)
-			return false;
-		else
-			return true;
+function getAdjectives($search){
+	$adjective_list = array();
+	$result = db_query("SELECT * FROM adjectives WHERE adjective LIKE ?", array(trim((string)$search)));
+	while ($row = $result->fetch()) {
+		$adjective_list[] = rowToAdjective($row);
+	}
+	return $adjective_list;
 }
 
+function getAdjective($code){
+	$row = db_query("SELECT * FROM adjectives WHERE code = ?", array((string)$code))->fetch();
+	return $row ? rowToAdjective($row) : new Adjective();
+}
+
+function getRanking($code){
+	$rankings = array(0,0,0,0,0);
+	$votes = 0;
+	$result = db_query("SELECT COUNT(*) AS count, `rank` FROM `rankings` WHERE code = ? GROUP BY `rank`", array((string)$code));
+	while ($row = $result->fetch()) {
+		$rankings[$row['rank'] + 2] = (int)$row['count'];
+		$votes += (int)$row['count'];
+	}
+	if ($votes == 0)
+		return 0;
+	else
+		return $rankings;
+}
+
+/*
+ * Αποθηκεύει (νέο ή υπάρχον) επίθετο και αντικαθιστά τα παραδείγματά του.
+ * Παλιότερα γινόταν με REPLACE INTO, που στη MySQL είναι DELETE + INSERT: λόγω του
+ * ON DELETE CASCADE έσβηνε και όλες τις ψήφους (rankings) του επιθέτου σε κάθε επεξεργασία.
+ */
+function addAdjective($code,$adjective,$definition ,$examples){
+	global $db;
+	$code = (string)$code;
+
+	$db->beginTransaction();
+	try {
+		db_query("INSERT INTO adjectives (code, adjective, definition) VALUES (?, ?, ?)
+		          ON DUPLICATE KEY UPDATE adjective = VALUES(adjective), definition = VALUES(definition)",
+			array($code, (string)$adjective, (string)$definition));
+
+		db_query("DELETE FROM examples WHERE code = ?", array($code));
+		foreach (explode(',', (string)$examples) as $example) {
+			db_query("INSERT INTO examples (code, example) VALUES (?, ?)", array($code, $example));
+		}
+		$db->commit();
+	} catch (Exception $e) {
+		$db->rollBack();
+		throw $e;
+	}
+	return true;
+}
+
+function deleteAdjective($code) {
+	db_query("DELETE FROM adjectives WHERE code = ?", array((string)$code));
+}
+
+/*
+ * ------------------------------------------------------------------
+ *  Ψηφοφορία
+ * ------------------------------------------------------------------
+ */
+
+function getAdjectivesForVoting($username){
+	$adjective_list = array();
+	$result = db_query("SELECT * FROM `adjectives` WHERE code NOT IN (SELECT code FROM rankings WHERE username = ?) LIMIT 1000",
+		array((string)$username));
+
+	while ($row = $result->fetch()) {
+		$adjective = rowToAdjective($row);
+		$adjective->votes = (int)db_query("SELECT COUNT(*) FROM rankings WHERE code = ?", array($adjective->code))->fetchColumn();
+		$adjective_list[] = $adjective;
+	}
+
+	usort($adjective_list, "cmp");
+
+	return $adjective_list;
+}
+
+function cmp($a, $b){
+	if($a->votes < $b->votes)
+		return false;
+	else
+		return true;
+}
+
+/* Καταχωρεί ψήφο (-2 .. 2). Επιστρέφει false αν η ψήφος δεν είναι έγκυρη ή έχει ήδη δοθεί. */
 function addVote($code,$vote,$username){
-	$result  = mysql_query("INSERT INTO rankings (code,rank,username) VALUES ('$code','$vote','$username')")  or die(mysql_error());
+	if (!is_scalar($code) || !is_numeric($vote)) {
+		return false;
+	}
+	$vote = (int)$vote;
+	if ($vote < -2 || $vote > 2) {
+		return false;
+	}
+	try {
+		db_query("INSERT INTO rankings (code, `rank`, username) VALUES (?, ?, ?)",
+			array((string)$code, $vote, (string)$username));
+	} catch (PDOException $e) {
+		if (is_constraint_violation($e)) {
+			return false; // διπλή ψήφος ή ανύπαρκτο επίθετο
+		}
+		throw $e;
+	}
+	return true;
 }
 ?>

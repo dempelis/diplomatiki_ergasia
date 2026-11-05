@@ -21,31 +21,26 @@ if(isset($_GET['logout'])){
 -->
 <script language="JavaScript" type="text/javascript">
 	
-	function deluser(username, name)
-	{
-	   if (confirm("Θέλετε σίγουρα να διαγράψετε τo χρήστη '" + name + "';"))
-	   {
-		  window.location.href = 'users.php?deluser=' + username;
-	   }
-	}
-	
-	function deladjective(code, adjective)
-	{
-	   if (confirm("Θέλετε σίγουρα να διαγράψετε τo επίθετο '" + adjective + "';"))
-	   {
-		  window.location.href = 'adjectives.php?deladjective=' + code;
-	   }
-	}
-	
-	function delcomment(id)
-	{
-		if (confirm("Θέλετε σίγουρα να διαγράψετε αυτό το σχόλιο ;")) {
-			window.location.href = 'contactus.php?delcomment=' +id;
-		}
-	}
-	
-	
-	
+	/*
+	 * Διαγραφές: γίνονται με POST και CSRF token (όχι με GET link).
+	 * Ένας σύνδεσμος <a class="js-post-delete" data-url=".." data-field=".." data-value=".." data-confirm="..">
+	 * ζητά επιβεβαίωση και στέλνει τη φόρμα.
+	 */
+	var CSRF_TOKEN = <?php echo json_encode(csrf_token()); ?>;
+
+	$(function() {
+		$(document).on('click', '.js-post-delete', function(e) {
+			e.preventDefault();
+			var link = $(this);
+			if (!confirm(link.attr('data-confirm'))) {
+				return;
+			}
+			var form = $('<form method="post"></form>').attr('action', link.attr('data-url'));
+			form.append($('<input type="hidden" />').attr('name', link.attr('data-field')).val(link.attr('data-value')));
+			form.append($('<input type="hidden" name="csrf_token" />').val(CSRF_TOKEN));
+			form.appendTo('body').submit();
+		});
+	});
 </script>
 </head>
 <body>

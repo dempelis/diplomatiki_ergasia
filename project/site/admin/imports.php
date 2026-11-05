@@ -106,7 +106,7 @@
 			$i=0;
 			foreach ($index_data as $el ) {
 				?>
-				<p  class="adj" style="cursor: pointer; margin: 0px; background-color: <?php echo $i%2?'#FFFFFF':'#E5E5E5'; ?>;" onclick="<?php echo 'get_data(\''.$el['adj'].'\','.$el['offset'].')';?>"><?php echo $el['adj']; ?></p>
+				<p  class="adj" style="cursor: pointer; margin: 0px; background-color: <?php echo $i%2?'#FFFFFF':'#E5E5E5'; ?>;" onclick="<?php echo h('get_data(' . json_encode($el['adj']) . ',' . (int)$el['offset'] . ')');?>"><?php echo h($el['adj']); ?></p>
 				<?php	
 				$i++;
 			}

@@ -11,17 +11,14 @@ if(isset($_GET['logout'])){
 $search = "";
 $username = $_SESSION['username'];
 
-if(isset($_GET['deladjective'])){
-		
-	$deladjective = $_GET['deladjective'];
+if(isset($_POST['deladjective'])){
+	/* μόνο οι διαχειριστές διαγράφουν επίθετα (όπως εμφανίζεται και το κουμπί) */
+	advanced_required();
 
-	$deladjective = mysql_escape_string($deladjective);
-	
-	$result = mysql_query("DELETE FROM adjectives WHERE code= '$deladjective'") or die(mysql_error());
-
-	
-	if($result)
-		$_SESSION['success'] = "To επίθετο διαγράφηκε"; 
+	if (is_valid_post()) {
+		deleteAdjective(post_string('deladjective'));
+		$_SESSION['success'] = "To επίθετο διαγράφηκε";
+	}
 	
 	
     header("Location: adjectives.php");
@@ -33,7 +30,7 @@ include('header.php');
 
 
 if(isset($_POST["search"]) )
-	$search = $_POST["search"];
+	$search = post_string("search");
 
 
 ?>
@@ -51,7 +48,7 @@ if(isset($_POST["search"]) )
 <form action="" method="post">
 
 	<h3>Αναζήτηση Επιθέτων</h3>
-	<p>Επίθετο:<br /> <input name="search" type="text" value="<?php echo $search ?>" size="103" /></p>
+	<p>Επίθετο:<br /> <input name="search" type="text" value="<?php echo h($search) ?>" size="103" /></p>
 	<p><input type="submit" name="submit" value="Αναζήτηση" class="button" /></p>
 </form>
 
@@ -81,21 +78,22 @@ if(isset($_POST["search"]) )
 		
 		foreach ( $adjectives as $adjective){
 			$code = $adjective->code;
-		
+
 			echo "<tr>";
-			echo "  <td>$code</td>
-					<td>$adjective->adjective</td>
-					<td>$adjective->definition</td>
-					<td>" . implode(",", $adjective->examples) ."</td>
+			echo "  <td>" . h($code) . "</td>
+					<td>" . h($adjective->adjective) . "</td>
+					<td>" . h($adjective->definition) . "</td>
+					<td>" . h(implode(",", $adjective->examples)) ."</td>
 					<td colspan='3'>
-					<!--	<iframe frameborder=0 width='150' height='100' src='" . DIR  ."ranking.php?code=$code'></iframe> -->
-							<img src='" . DIR . "ranking.php?code=$code' />
-					</td>";		
-					
-			
+							<img src='" . h(DIR . "ranking.php?code=" . urlencode($code)) . "' />
+					</td>";
+
+
 			if(isAdvanced()){
-				echo "<td> <a href=\"".DIRADMIN."adjective.php?code=$code\">Τροποποίηση</a> </td>";
-				echo "<td> <a href=\"javascript:deladjective('$code', '$adjective->adjective');\">Διαγραφή</a></td>";	
+				echo "<td> <a href=\"" . h(DIRADMIN . "adjective.php?code=" . urlencode($code)) . "\">Τροποποίηση</a> </td>";
+				echo "<td> <a href=\"#\" class=\"js-post-delete\" data-url=\"adjectives.php\" data-field=\"deladjective\""
+					. " data-value=\"" . h($code) . "\""
+					. " data-confirm=\"" . h("Θέλετε σίγουρα να διαγράψετε τo επίθετο '" . $adjective->adjective . "';") . "\">Διαγραφή</a></td>";
 			}
 			else 	
 				echo "<td colspan=\"2\" > &nbsp; </td>";

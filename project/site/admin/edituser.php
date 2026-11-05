@@ -4,18 +4,18 @@ require('../includes/config.php');
 login_required();
 advanced_required();
 
-if(isset($_POST['submit'])){
+if(isset($_POST['submit']) && is_valid_post()){
 
-	$username = $_POST['username'];
-	$password = $_POST['password'];
-	$type = $_POST['type'];
-	$name = $_POST['name'];
-	
-	
-	updateUser($username,$password ,$name,$type );
-	
-	
-	$_SESSION['success'] = 'Τα στοιχεία του χρήστη  τροποποιήθηκαν';
+	$username = post_string('username');
+	$password = post_string('password');
+	$type = post_string('type');
+	$name = post_string('name');
+
+
+	if (updateUser($username,$password ,$name,$type ))
+		$_SESSION['success'] = 'Τα στοιχεία του χρήστη  τροποποιήθηκαν';
+	else
+		$_SESSION['error'] = 'Μη έγκυρος τύπος χρήστη';
 	header("Location: users.php");
 	exit();
 
@@ -41,9 +41,10 @@ $user = getUser($username);
 
 
 <form action="" method="post">
+<?php echo csrf_field(); ?>
 
-<p>Όνομα χρήστη:<br /> <input name="username" type="text"  readonly="readonly"  value="<?php echo $user->username;?>" size="103" /></p>
-<p>Όνομα:<br /> <input name="name" type="text"   value="<?php echo $user->name;?>" size="103" /></p>
+<p>Όνομα χρήστη:<br /> <input name="username" type="text"  readonly="readonly"  value="<?php echo h($user->username);?>" size="103" /></p>
+<p>Όνομα:<br /> <input name="name" type="text"   value="<?php echo h($user->name);?>" size="103" /></p>
 <p>Νέος κωδικός:<br /> <input name="password" type="password"   value="" size="103" /></p>
 
 

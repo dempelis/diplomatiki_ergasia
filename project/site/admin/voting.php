@@ -16,15 +16,14 @@ $username = $_SESSION['username'];
 
 include('header.php');
 
-if(isset($_POST['submit'])){
-	
-	$codes = $_POST['code'];
-	$votes = $_POST['vote'];
-	// var_dump($codes);
-	// var_dump($votes);
-	
+if(isset($_POST['submit']) && is_valid_post()){
+
+	$codes = (isset($_POST['code']) && is_array($_POST['code'])) ? array_values($_POST['code']) : array();
+	$votes = (isset($_POST['vote']) && is_array($_POST['vote'])) ? array_values($_POST['vote']) : array();
+
 	for($i=0;$i<count($codes);$i++){
-		if(is_numeric($votes[$i]))
+		/* το addVote δέχεται μόνο ψήφους -2..2 και περνά τις τιμές ως παραμέτρους στο query */
+		if(isset($votes[$i]) && is_numeric($votes[$i]))
 			addVote($codes[$i],$votes[$i],$username);
 	}
 	$_SESSION['success']='Οι ψήφοι αποθηκεύτηκαν';
@@ -52,6 +51,7 @@ if(isset($_POST['submit'])){
 ?>
 <br/>
 <form action="" method="post">
+	<?php echo csrf_field(); ?>
 	<table>
 		<tr>
 			<th colspan='7' ><strong>Επίθετα </strong></th>
@@ -75,12 +75,12 @@ if(isset($_POST['submit'])){
 			$code = $adjective->code;
 			
 			echo "<tr>";
-			echo "<input type=hidden name='code[]' value='$code' />";
-			echo "  <td>$code</td>
-					<td>$adjective->adjective</td>
-					<td>$adjective->definition</td>
-					<td>" . implode(",", $adjective->examples) ."</td>
-					<td>$adjective->votes</td>";
+			echo "<input type=hidden name='code[]' value='" . h($code) . "' />";
+			echo "  <td>" . h($code) . "</td>
+					<td>" . h($adjective->adjective) . "</td>
+					<td>" . h($adjective->definition) . "</td>
+					<td>" . h(implode(",", $adjective->examples)) ."</td>
+					<td>" . (int)$adjective->votes . "</td>";
 			echo "  <td colspan='2'> <select name='vote[]'><option value=''>Ψήφος</option><option>-2</option><option>-1</option><option>0</option><option>1</option><option>2</option></select> </td>";
 			echo "</tr>";
 			$count++;

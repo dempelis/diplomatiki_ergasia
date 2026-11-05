@@ -1,8 +1,8 @@
 ﻿<?php
 require('./includes/config.php'); 
 
-$search = isset($_POST["search"]) ?$_POST["search"] : "";
-$page = isset($_GET['page']) ? $_GET['page'] : 1;
+$search = post_string("search");
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 
 $total = countAdjectives();
 ?>
@@ -40,7 +40,7 @@ $total = countAdjectives();
             <div class="pageContent">
 			    <form action="" method="post">
 				<h3>Αναζήτηση Επιθέτων</h3>
-				<p>Επίθετο:<input name="search" type="text" value="<?php echo $search ?>" size="50" />
+				<p>Επίθετο:<input name="search" type="text" value="<?php echo h($search) ?>" size="50" />
 				<input type="submit" name="submit" value="Αναζήτηση" class="button" /></p>
 			</form>
 			<?php
@@ -73,12 +73,11 @@ $total = countAdjectives();
 					$code = $adjective->code;
 					$style =' style="background:white" ' ;
 					echo "<tr $style>";
-					echo "  <td>$adjective->adjective</td>
-							<td>$adjective->definition</td>
-							<td>" . implode(",", $adjective->examples) ."</td>
+					echo "  <td>" . h($adjective->adjective) . "</td>
+							<td>" . h($adjective->definition) . "</td>
+							<td>" . h(implode(",", $adjective->examples)) ."</td>
 							<td colspan='3'>
-								<!-- <iframe frameborder=0 width='150' height='100' src='" . DIR  ."ranking.php?code=$code'></iframe> -->
-								<img src='". DIR . "ranking.php?code=$code'>
+								<img src='" . h(DIR . "ranking.php?code=" . urlencode($code)) . "'>
 							</td>";		
 					echo "</tr>";
 					$i++;

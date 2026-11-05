@@ -10,13 +10,12 @@ advanced_required();
 if(isset($_GET['logout'])){
 	logout();
 }
-else  if(isset($_GET['deluser'])){
-		
-	$deluser = $_GET['deluser'];
-	$deluser = mysql_real_escape_string($deluser);
+else  if(isset($_POST['deluser']) && is_valid_post()){
+
+	$deluser = post_string('deluser');
 	if($deluser!="admin"){
-		$sql = mysql_query("DELETE FROM users WHERE username = '$deluser' ");
-		$_SESSION['success'] = "O χρήστης διαγράφηκε"; 
+		deleteUser($deluser);
+		$_SESSION['success'] = "O χρήστης διαγράφηκε";
 	}
 	else{
 		$_SESSION['error'] = "O χρήστης admin δεν είναι δυνατό να διαγραφεί."; 
@@ -56,10 +55,12 @@ include('header.php');
 		$users = getUsers();
 		foreach ( $users as $user){
 			echo "<tr>";
-			echo "<td>$user->username</td><td>$user->name</td>";
-			echo "<td>$user->type</td>";
-			echo "<td><a href=\"".DIRADMIN."edituser.php?id=$user->username\">Τροποποίηση</a> </td>";
-			echo "<td> <a href=\"javascript:deluser('$user->username','$user->name');\">Διαγραφή</a></td>";	
+			echo "<td>" . h($user->username) . "</td><td>" . h($user->name) . "</td>";
+			echo "<td>" . h($user->type) . "</td>";
+			echo "<td><a href=\"" . h(DIRADMIN . "edituser.php?id=" . urlencode($user->username)) . "\">Τροποποίηση</a> </td>";
+			echo "<td> <a href=\"#\" class=\"js-post-delete\" data-url=\"users.php\" data-field=\"deluser\""
+				. " data-value=\"" . h($user->username) . "\""
+				. " data-confirm=\"" . h("Θέλετε σίγουρα να διαγράψετε τo χρήστη '" . $user->name . "';") . "\">Διαγραφή</a></td>";
 			echo "</tr>";
 		}
 		?>

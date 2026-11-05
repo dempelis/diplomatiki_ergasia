@@ -3,6 +3,7 @@
 require('../includes/config.php'); 
 
 
+login_required();
 advanced_required();
 
 $username = $_SESSION['username'];
@@ -22,12 +23,12 @@ if(isset($_GET['code'])){
 	$examples= implode(',',$adjective->examples);
 
 }
-if(isset($_POST['submit'])){
+if(isset($_POST['submit']) && is_valid_post()){
 
-	$name = $_POST['name'];
-	$definition = $_POST['definition'];
-	$examples = $_POST['examples'];
-	$code = $_POST['code'];
+	$name = post_string('name');
+	$definition = post_string('definition');
+	$examples = post_string('examples');
+	$code = post_string('code');
 
 	$res= addAdjective($code,$name,$definition ,$examples);
 	
@@ -55,13 +56,14 @@ include("header.php");
 <h1>Προσθήκη Επιθέτου</h1>
 
 <form action="" method="post" >
+<?php echo csrf_field(); ?>
 
 
 <table>
-<tr><td>Κωδικός: </td><td> <input <?php echo $readonly ?> name="code" type="text" value="<?php echo strlen($code) ? $code : $randomcode; ?>"  size="103" /></td></tr>
-<tr><td>Επίθετο: </td><td> <input name="name" type="text" value="<?php echo $name ?>"  size="103" /></td></tr>
-<tr><td>Ορισμός: </td><td><input name="definition" type="text" value="<?php echo $definition ?>"  size="103" /></td></tr>
-<tr><td>Παραδείγματα <br/>(διαχωρισμένα με κόμμα):</td><td> <textarea name="examples" cols="102" rows="4"><?php echo $examples ?></textarea> </td></tr>
+<tr><td>Κωδικός: </td><td> <input <?php echo $readonly ?> name="code" type="text" value="<?php echo h(strlen($code) ? $code : $randomcode); ?>"  size="103" /></td></tr>
+<tr><td>Επίθετο: </td><td> <input name="name" type="text" value="<?php echo h($name) ?>"  size="103" /></td></tr>
+<tr><td>Ορισμός: </td><td><input name="definition" type="text" value="<?php echo h($definition) ?>"  size="103" /></td></tr>
+<tr><td>Παραδείγματα <br/>(διαχωρισμένα με κόμμα):</td><td> <textarea name="examples" cols="102" rows="4"><?php echo h($examples) ?></textarea> </td></tr>
 
 </table>
 
