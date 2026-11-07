@@ -26,7 +26,7 @@ $RECYCLE.BIN/
 .LSOverride
 
 # Icon must ends with two \r.
-Icon
+Icon
 
 # Thumbnails
 ._*
@@ -44,3 +44,6 @@ tags
 #ignore claude specific things
 .claude/settings.local.json
 .claude/worktrees
+
+# local credentials (see .env.example)
+.env

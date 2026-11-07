@@ -4,14 +4,9 @@ require('../includes/config.php');
 login_required();
 advanced_required();
 
-if(isset($_GET['logout'])){
-	logout();
-}
-else  if(isset($_GET['delcomment'])){
-		
-	$delcomment = $_GET['delcomment'];
-	$delcomment = mysql_real_escape_string($delcomment);
-	$sql = mysql_query("DELETE FROM contactus WHERE id = '$delcomment' ");
+if(isset($_POST['delcomment']) && is_valid_post()){
+
+	deleteComment(post_string('delcomment'));
 	$_SESSION['success'] = "Το σχόλιο διαγράφηκε"; 
 		
     header('Location: ' .DIRADMIN. 'contactus.php');
@@ -46,9 +41,12 @@ include('header.php');
 		$comments = getComments();
 		foreach ( $comments as $cmnt){
 			echo "<tr>";
-			echo "<td>$cmnt->from</td><td>$cmnt->subject</td>";
-			echo "<td>$cmnt->comment</td>";
-			echo "<td> <a href=\"javascript:delcomment('$cmnt->id');\">Διαγραφή</a></td>";	
+			/* τα σχόλια έρχονται από τη δημόσια φόρμα επικοινωνίας: πάντα escape */
+			echo "<td>" . h($cmnt->from) . "</td><td>" . h($cmnt->subject) . "</td>";
+			echo "<td>" . h($cmnt->comment) . "</td>";
+			echo "<td> <a href=\"#\" class=\"js-post-delete\" data-url=\"contactus.php\" data-field=\"delcomment\""
+				. " data-value=\"" . h($cmnt->id) . "\""
+				. " data-confirm=\"" . h("Θέλετε σίγουρα να διαγράψετε αυτό το σχόλιο ;") . "\">Διαγραφή</a></td>";
 			echo "</tr>";
 		}
 		?>

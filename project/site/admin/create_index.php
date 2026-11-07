@@ -1,4 +1,12 @@
-<?php 
+<?php
+require('../includes/config.php');
+
+/* καλείται με AJAX από τη σελίδα εισαγωγής (imports.php): μόνο για διαχειριστές */
+login_required();
+advanced_required();
+
+$like = (isset($_GET['like']) && is_string($_GET['like'])) ? $_GET['like'] : null;
+
 $fh = fopen("all-adjectives.txt", "r");
 if ($fh == false) {
 	echo 'Το αρχείο δεν υπάρχει / δεν ανοίγει';
@@ -32,9 +40,9 @@ while (!feof($fh)) {
 			$adj = trim(substr($str, $start, ($end - $start + 1)));
 		}
 	
-		if(isset($_GET['like']) ) {
-			$test_str = mb_substr($adj,0, mb_strlen($_GET['like']));
-			$t = strcmp($test_str, $_GET['like']);
+		if($like !== null ) {
+			$test_str = mb_substr($adj,0, mb_strlen($like));
+			$t = strcmp($test_str, $like);
 			if ($t < 0 )
 				continue;
 			else if ($t == 0 ) 
@@ -51,7 +59,7 @@ fclose($fh);
 $i=0;
 foreach ($data as $el ) {
 ?>
-	<p  class="adj" style="cursor: pointer; margin: 0px; background-color: <?php echo $i%2?'#FFFFFF':'#E5E5E5'; ?>;" onclick="<?php echo 'get_data(\''.$el['adj'].'\','.$el['offset'].')';?>"><?php echo $el['adj']; ?></p>
+	<p  class="adj" style="cursor: pointer; margin: 0px; background-color: <?php echo $i%2?'#FFFFFF':'#E5E5E5'; ?>;" onclick="<?php echo h('get_data(' . json_encode($el['adj']) . ',' . (int)$el['offset'] . ')');?>"><?php echo h($el['adj']); ?></p>
 <?php	
 	$i++;
 }

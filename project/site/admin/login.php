@@ -7,6 +7,11 @@ if(logged_in()) {
 	} else {
 		header('Location: '. $host.DIRADMIN);
 	}
+	exit();
+}
+/* πριν από οποιοδήποτε HTML: το login στέλνει headers (νέο session id, redirect) */
+if( isset($_POST['submit']) && is_valid_post() ) {
+	login(post_string('username'), post_string('password'));
 }
 ?>
 <!DOCTYPE html>
@@ -22,15 +27,10 @@ if(logged_in()) {
 	<div class="page-wrap">
 		<div class="content">
 		
-		<?php 
-		if( isset($_POST['submit']) ) {
-			login($_POST['username'], $_POST['password']);
-		}
-		?>
-
 		<div id="login">
 			<p><?php echo messages();?></p>        
 			<form method="post" action="">
+				<?php echo csrf_field(); ?>
 				<p><label><strong>Username</strong><input type="text" name="username" /></label></p>
 				<p><label><strong>Password</strong><input type="password" name="password" /></label></p>
 				<p><br /><input type="submit" name="submit" class="button" value="login" /></p>
