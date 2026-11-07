@@ -37,3 +37,10 @@ Icon
 
 # ignore vagrant runtime specific files
 .vagrant/
+
+# ignore tags
+tags
+
+#ignore claude specific things
+.claude/settings.local.json
+.claude/worktrees
